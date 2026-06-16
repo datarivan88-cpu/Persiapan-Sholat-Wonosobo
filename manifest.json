@@ -9,9 +9,10 @@
   "orientation": "portrait",
   "icons": [
     {
-      "src": "https://datarivan88-cpu.github.io/Persiapan-Sholat-Wonosobo/assets/icons/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png"
+      "src": "https://api.iconify.design/twemoji/mosque.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
     }
   ]
 }
