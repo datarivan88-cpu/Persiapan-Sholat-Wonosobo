@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0">
+<meta name="theme-color" content="#0f1923">
+<title>Pengingat Sholat Wonosobo</title>
+
+<!-- Capacitor runtime (bundled by cap sync into www) -->
+<script src="capacitor.js" defer></script>
+<style>
+/* ==================== RESET & TOKENS ==================== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:        #0f1923;
+  --surface:   #19283a;
+  --card:      #1e3045;
+  --border:    #263d57;
+  --gold:      #c9a84c;
+  --gold-lite: #e8c87a;
+  --gold-dim:  #6b5520;
+  --text:      #e4d8c0;
+  --muted:     #6e8aa3;
+  --green:     #4db87a;
+  --red:       #e05c5c;
+  --amber:     #e8a040;
+  --radius:    14px;
+  --safe-top:  env(safe-area-inset-top, 0px);
+  --safe-bot:  env(safe-area-inset-bottom, 0px);
+}
+html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'Segoe UI', sans-serif; overscroll-behavior: none; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+
+/* ==================== HEADER ==================== */
+.app-header {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, #08121c 0%, var(--bg) 100%);
+  padding: calc(var(--safe-top) + 14px) 20px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: center;
+}
+.app-header .icon { font-size: 2rem; line-height: 1; display: block; }
+.app-header h1 { font-size: 1.25rem; font-weight: 700; color: var(--gold); margin-top: 4px; letter-spacing: .02em; }
+.app-header .subtitle { font-size: .68rem; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; margin-top: 2px; }
+
+/* ==================== SCROLL BODY ==================== */
+.scroll-body { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: calc(var(--safe-bot) + 80px); }
+
+/* ==================== CLOCK STRIP ==================== */
+.clock-strip {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 12px 20px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+#live-clock { font-size: 2.2rem; font-weight: 300; color: var(--gold); letter-spacing: .06em; font-variant-numeric: tabular-nums; }
+.clock-right { text-align: right; }
+#live-date  { font-size: .72rem; color: var(--text); }
+#hijri-date { font-size: .65rem; color: var(--gold-dim); margin-top: 2px; }
+
+/* ==================== NEXT PRAYER ==================== */
+.next-card {
+  margin: 14px 16px 0;
+  background: linear-gradient(135deg, #1a3455 0%, #12253d 100%);
+  border: 1px solid #2a4a72;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.next-left .label { font-size: .62rem; color: var(--muted); letter-spacing: .12em; text-transform: uppercase; }
+.next-left .p-name { font-size: 1.55rem; font-weight: 700; color: #fff; line-height: 1.1; margin-top: 3px; }
+.next-left .countdown { font-size: .78rem; color: var(--gold); margin-top: 5px; }
+.next-right .p-time { font-size: 2rem; font-weight: 300; color: var(--gold); font-variant-numeric: tabular-nums; }
+.next-right .reminder-tag {
+  font-size: .62rem; color: var(--muted); text-align: right; margin-top: 4px;
+  background: rgba(0,0,0,.25); border-radius: 20px; padding: 2px 8px;
+}
+
+/* ==================== SECTION LABEL ==================== */
+.sec-label { padding: 14px 20px 6px; font-size: .62rem; color: var(--muted); letter-spacing: .14em; text-transform: uppercase; }
+
+/* ==================== PRAYER LIST ==================== */
+.prayer-list { margin: 0 16px; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.prayer-row {
+  display: flex; align-items: center; padding: 13px 16px;
+  border-bottom: 1px solid var(--border); transition: background .2s;
+}
+.prayer-row:last-child { border-bottom: none; }
+.prayer-row.is-current { background: #0e2418; }
+.prayer-row.is-next    { background: #1a2e10; }
+.p-indicator { width: 7px; height: 7px; border-radius: 50%; background: var(--border); margin-right: 13px; flex-shrink: 0; transition: all .3s; }
+.prayer-row.is-current .p-indicator { background: var(--green); box-shadow: 0 0 8px var(--green); }
+.prayer-row.is-next    .p-indicator { background: var(--gold);  box-shadow: 0 0 8px var(--gold); }
+.p-body { flex: 1; }
+.p-name-row { display: flex; align-items: baseline; gap: 8px; }
+.p-name { font-size: .95rem; font-weight: 700; }
+.prayer-row.is-current .p-name { color: var(--green); }
+.prayer-row.is-next    .p-name { color: var(--gold-lite); }
+.p-arabic { font-size: .72rem; color: var(--muted); direction: rtl; }
+.p-sub { font-size: .65rem; color: var(--muted); margin-top: 1px; }
+.p-time { font-size: 1.05rem; font-weight: 300; color: var(--text); font-variant-numeric: tabular-nums; }
+
+/* ==================== ALARM PANEL ==================== */
+.alarm-card { margin: 14px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.alarm-card-header {
+  padding: 13px 16px; font-size: .82rem; font-weight: 700; color: var(--gold);
+  border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px;
+}
+/* toggle row */
+.toggle-row {
+  display: flex; align-items: center; padding: 13px 16px;
+  border-bottom: 1px solid var(--border); gap: 12px;
+}
+.toggle-row:last-child { border-bottom: none; }
+.toggle-info { flex: 1; }
+.toggle-info strong { display: block; font-size: .88rem; }
+.toggle-info span   { font-size: .68rem; color: var(--muted); }
+/* ios-style toggle */
+.sw { position: relative; width: 46px; height: 26px; flex-shrink: 0; }
+.sw input { opacity: 0; width: 0; height: 0; }
+.sw-track {
+  position: absolute; inset: 0; background: var(--border); border-radius: 26px;
+  cursor: pointer; transition: background .22s;
+}
+.sw-track::before {
+  content: ''; position: absolute; width: 20px; height: 20px;
+  left: 3px; top: 3px; background: #fff; border-radius: 50%;
+  transition: transform .22s; box-shadow: 0 1px 3px rgba(0,0,0,.4);
+}
+.sw input:checked + .sw-track { background: var(--gold); }
+.sw input:checked + .sw-track::before { transform: translateX(20px); }
+
+/* ==================== MENIT SEBELUM ==================== */
+.min-row {
+  display: flex; align-items: center; padding: 13px 16px;
+  border-top: 1px solid var(--border); gap: 12px;
+}
+.min-row .toggle-info { flex: 1; }
+.min-btns { display: flex; gap: 6px; }
+.min-btn {
+  padding: 6px 12px; border-radius: 20px;
+  border: 1px solid var(--border); background: transparent;
+  color: var(--muted); font-size: .8rem; cursor: pointer; transition: all .15s;
+}
+.min-btn.active { background: var(--gold); border-color: var(--gold); color: #0f1923; font-weight: 700; }
+
+/* ==================== SOUND PANEL ==================== */
+.sound-card { margin: 14px 16px 0; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+.sound-card-header { padding: 13px 16px; font-size: .82rem; font-weight: 700; color: var(--gold); border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+.sound-option {
+  display: flex; align-items: center; padding: 13px 16px;
+  border-bottom: 1px solid var(--border); cursor: pointer; gap: 12px; transition: background .15s;
+}
+.sound-option:last-child { border-bottom: none; }
+.sound-option:active { background: var(--card); }
+.sound-option.selected { background: #1e3018; }
+.sound-radio {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--border); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: all .15s;
+}
+.sound-option.selected .sound-radio { border-color: var(--gold); background: var(--gold); }
+.sound-option.selected .sound-radio::after { content: ''; width: 7px; height: 7px; background: #0f1923; border-radius: 50%; }
+.sound-info { flex: 1; }
+.sound-info strong { font-size: .88rem; display: block; }
+.sound-info span   { font-size: .65rem; color: var(--muted); }
+.sound-preview {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--border); border: none;
+  color: var(--text); font-size: .85rem; cursor: pointer; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .15s;
+}
+.sound-preview:active { background: var(--gold-dim); }
+
+/* ==================== STATUS ==================== */
+.status-box {
+  margin: 14px 16px 0;
+  padding: 12px 16px; border-radius: var(--radius);
+  font-size: .78rem; line-height: 1.5; display: flex; align-items: flex-start; gap: 10px;
+}
+.status-box.ok   { background: #0c2018; border: 1px solid #1a4030; color: var(--green); }
+.status-box.warn { background: #221a09; border: 1px solid #4a360e; color: var(--amber); }
+.status-box.err  { background: #220d0d; border: 1px solid #4a1a1a; color: var(--red); }
+
+/* ==================== ACTIVATE BTN ==================== */
+.activate-wrap { padding: 14px 16px 0; }
+.activate-btn {
+  width: 100%; padding: 17px; background: var(--gold); color: #0f1923;
+  font-size: 1rem; font-weight: 700; border: none; border-radius: var(--radius);
+  cursor: pointer; letter-spacing: .03em; transition: opacity .15s;
+}
+.activate-btn:disabled { opacity: .45; cursor: default; }
+.activate-btn:not(:disabled):active { opacity: .8; }
+
+/* ==================== TEST ALARM ==================== */
+.test-wrap { padding: 10px 16px 0; }
+.test-btn {
+  width: 100%; padding: 13px; background: transparent;
+  color: var(--gold); font-size: .88rem; font-weight: 700;
+  border: 1px solid var(--gold-dim); border-radius: var(--radius);
+  cursor: pointer; letter-spacing: .03em; transition: all .15s;
+}
+.test-btn:active { background: var(--gold-dim); }
+
+/* ==================== FOOTER ==================== */
+.footer { padding: 14px 16px 4px; text-align: center; font-size: .62rem; color: var(--border); line-height: 1.6; }
+
+/* ==================== SPLASH / LOADING ==================== */
+#splash {
+  position: fixed; inset: 0; background: var(--bg);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  z-index: 999; transition: opacity .5s;
+}
+#splash.fade { opacity: 0; pointer-events: none; }
+.splash-icon { font-size: 4rem; animation: pulse 2s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{transform:scale(1)} 50%{transform:scale(1.1)} }
+.splash-title { font-size: 1.3rem; font-weight: 700; color: var(--gold); }
+.splash-sub   { font-size: .75rem; color: var(--muted); }
+.splash-bar   { width: 120px; height: 3px; background: var(--border); border-radius: 3px; overflow: hidden; margin-top: 6px; }
+.splash-fill  { height: 100%; background: var(--gold); border-radius: 3px; animation: load 1.8s ease-in-out forwards; }
+@keyframes load { from{width:0} to{width:100%} }
+</style>
+</head>
+<body>
+
+<!-- ========== SPLASH ========== -->
+<div id="splash">
+  <div class="splash-icon">🕌</div>
+  <div class="splash-title">Sholat Wonosobo</div>
+  <div class="splash-sub">Memuat jadwal sholat…</div>
+  <div class="splash-bar"><div class="splash-fill"></div></div>
+</div>
+
+<!-- ========== HEADER ========== -->
+<header class="app-header">
+  <span class="icon">🕌</span>
+  <h1>Pengingat Sholat</h1>
+  <p class="subtitle">Kabupaten Wonosobo · Jawa Tengah</p>
+</header>
+
+<!-- ========== SCROLL AREA ========== -->
+<div class="scroll-body">
+
+  <!-- Clock -->
+  <div class="clock-strip">
+    <div id="live-clock">00:00:00</div>
+    <div class="clock-right">
+      <div id="live-date">–</div>
+      <div id="hijri-date">–</div>
+    </div>
+  </div>
+
+  <!-- Next prayer -->
+  <div class="next-card">
+    <div class="next-left">
+      <div class="label">Sholat Berikutnya</div>
+      <div class="p-name" id="next-name">–</div>
+      <div class="countdown" id="next-countdown">Memuat…</div>
+    </div>
+    <div class="next-right">
+      <div class="p-time" id="next-time">–:–</div>
+      <div class="reminder-tag" id="next-tag">–</div>
+    </div>
+  </div>
+
+  <!-- Prayer list -->
+  <div class="sec-label">JADWAL HARI INI</div>
+  <div class="prayer-list" id="prayer-list"></div>
+
+  <!-- Alarm settings -->
+  <div class="sec-label">PENGATURAN ALARM</div>
+  <div class="alarm-card">
+    <div class="alarm-card-header">🔔 Pilih Sholat yang Diingatkan</div>
+    <div id="prayer-toggles"></div>
+    <div class="min-row">
+      <div class="toggle-info">
+        <strong>Alarm Berbunyi</strong>
+        <span>Berapa menit sebelum waktu sholat</span>
+      </div>
+      <div class="min-btns">
+        <button class="min-btn" data-m="10" onclick="setMinutes(10)">10′</button>
+        <button class="min-btn active" data-m="20" onclick="setMinutes(20)">20′</button>
+        <button class="min-btn" data-m="30" onclick="setMinutes(30)">30′</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Sound selection -->
+  <div class="sec-label">PILIHAN SUARA ALARM</div>
+  <div class="sound-card">
+    <div class="sound-card-header">🔊 Pilih Nada Alarm</div>
+    <div id="sound-list"></div>
+  </div>
+
+  <!-- Status -->
+  <div class="status-box warn" id="status-box">
+    ⏳ Alarm belum aktif. Tap tombol di bawah untuk mengaktifkan.
+  </div>
+
+  <!-- Activate -->
+  <div class="activate-wrap">
+    <button class="activate-btn" id="activate-btn" onclick="activateAlarms()">
+      🔔 Aktifkan Alarm Sholat
+    </button>
+  </div>
+
+  <!-- Test -->
+  <div class="test-wrap">
+    <button class="test-btn" onclick="testAlarm()">🔉 Uji Coba Alarm Sekarang</button>
+  </div>
+
+  <div class="footer">
+    Data waktu sholat: aladhan.com · Kemenag RI Method<br>
+    Koordinat Wonosobo: −7.3615°, 109.9038°<br>
+    v1.0.0 · Made with ❤️ for umat Muslim Wonosobo
+  </div>
+</div><!-- /scroll-body -->
+
+<script>
+// ══════════════════════════════════════════════════
+// CONSTANTS
+// ══════════════════════════════════════════════════
+const LAT    = -7.3615;
+const LNG    = 109.9038;
+const METHOD = 20; // Kemenag RI
+
+const PRAYERS = [
+  { key:'Fajr',    name:'Subuh',   arabic:'الفجر',   icon:'🌙', desc:'Sebelum matahari terbit' },
+  { key:'Dhuhr',   name:'Dzuhur',  arabic:'الظهر',   icon:'☀️', desc:'Tengah hari' },
+  { key:'Asr',     name:'Ashar',   arabic:'العصر',   icon:'🌤', desc:'Sore hari' },
+  { key:'Maghrib', name:'Maghrib', arabic:'المغرب',  icon:'🌅', desc:'Setelah matahari terbenam' },
+  { key:'Isha',    name:'Isya',    arabic:'العشاء',   icon:'🌙', desc:'Malam hari' },
+];
+
+const SOUNDS = [
+  { id:'adzan',         label:'Adzan Klasik',       desc:'Suara adzan tradisional Mekkah',   file:'adzan.wav' },
+  { id:'adzan_fajr',   label:'Adzan Subuh',         desc:'Adzan khusus Subuh (dengan "Ash-sholatu khairum minan naum")', file:'adzan_fajr.wav' },
+  { id:'beep_lembut',  label:'Nada Lembut',         desc:'Bunyi lonceng kalem, tidak mengejutkan', file:'bell_soft.wav' },
+  { id:'alarm_tegas',  label:'Alarm Tegas',         desc:'Bunyi alarm untuk yang susah bangun', file:'alarm.wav' },
+  { id:'marimba',      label:'Marimba Islami',      desc:'Melodi marimba bertema islami',    file:'marimba.wav' },
+];
+
+const DAYS_ID   = ['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu'];
+const MONTHS_ID = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+
+// ══════════════════════════════════════════════════
+// STATE
+// ══════════════════════════════════════════════════
+let prayerTimes   = {};
+let minutesBefore = 20;
+let selectedSound = 'adzan';
+let enabledMap    = { Fajr:true, Dhuhr:true, Asr:true, Maghrib:true, Isha:true };
+let isActive      = false;
+let Plugins       = {};
+
+// ══════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  loadSettings();
+  startClock();
+  renderSoundList();
+  renderPrayerToggles();
+
+  // Wait for Capacitor to be ready
+  if (window.Capacitor) {
+    Plugins = window.Capacitor.Plugins;
+    try { await Plugins.StatusBar?.setBackgroundColor({ color:'#0f1923' }); } catch(_){}
+  }
+
+  await fetchPrayerTimes();
+  renderPrayerList();
+  updateNextPrayer();
+  setInterval(updateNextPrayer, 1000);
+
+  // Dismiss splash
+  setTimeout(() => {
+    document.getElementById('splash').classList.add('fade');
+    setTimeout(() => document.getElementById('splash').remove(), 600);
+  }, 1800);
+});
+
+// ══════════════════════════════════════════════════
+// SETTINGS PERSISTENCE
+// ══════════════════════════════════════════════════
+function loadSettings() {
+  try {
+    const s = JSON.parse(localStorage.getItem('sholat-cfg') || '{}');
+    if (s.minutesBefore)  minutesBefore  = s.minutesBefore;
+    if (s.enabledMap)     enabledMap     = { ...enabledMap, ...s.enabledMap };
+    if (s.selectedSound)  selectedSound  = s.selectedSound;
+    if (s.isActive)       isActive       = s.isActive;
+    syncMinBtns();
+  } catch(e){}
+}
+
+function saveSettings() {
+  localStorage.setItem('sholat-cfg', JSON.stringify({ minutesBefore, enabledMap, selectedSound, isActive }));
+}
+
+// ══════════════════════════════════════════════════
+// FETCH PRAYER TIMES
+// ══════════════════════════════════════════════════
+async function fetchPrayerTimes() {
+  const now = new Date();
+  const d   = String(now.getDate()).padStart(2,'0');
+  const m   = String(now.getMonth()+1).padStart(2,'0');
+  const y   = now.getFullYear();
+  const url = `https://api.aladhan.com/v1/timings/${d}-${m}-${y}?latitude=${LAT}&longitude=${LNG}&method=${METHOD}`;
+
+  try {
+    const res  = await fetch(url, { signal: AbortSignal.timeout(8000) });
+    const json = await res.json();
+    if (json.code === 200) {
+      const t = json.data.timings;
+      PRAYERS.forEach(p => { prayerTimes[p.key] = t[p.key].slice(0,5); });
+      const h = json.data.date.hijri;
+      document.getElementById('hijri-date').textContent = `${h.day} ${h.month.en} ${h.year} H`;
+      setStatus('ok','✅ Jadwal sholat berhasil dimuat dari server.');
+    } else { throw new Error('API error'); }
+  } catch(e) {
+    prayerTimes = fallbackTimes(new Date());
+    setStatus('warn','⚠️ Tidak dapat terhubung ke server. Menggunakan waktu perkiraan Wonosobo. Sambungkan internet untuk data akurat.');
+  }
+}
+
+function fallbackTimes(d) {
+  // Approximation for Wonosobo based on season (mid-year)
+  const m = d.getMonth(); // 0-indexed
+  const isSummer = m >= 3 && m <= 8;
+  return isSummer
+    ? { Fajr:'04:22', Dhuhr:'11:46', Asr:'15:04', Maghrib:'17:42', Isha:'18:53' }
+    : { Fajr:'04:05', Dhuhr:'11:50', Asr:'15:10', Maghrib:'17:55', Isha:'19:08' };
+}
+
+// ══════════════════════════════════════════════════
+// CLOCK
+// ══════════════════════════════════════════════════
+function startClock() {
+  function tick() {
+    const n = new Date();
+    document.getElementById('live-clock').textContent =
+      `${pad(n.getHours())}:${pad(n.getMinutes())}:${pad(n.getSeconds())}`;
+    document.getElementById('live-date').textContent =
+      `${DAYS_ID[n.getDay()]}, ${n.getDate()} ${MONTHS_ID[n.getMonth()]} ${n.getFullYear()}`;
+  }
+  tick(); setInterval(tick, 1000);
+}
+const pad = n => String(n).padStart(2,'0');
+
+// ══════════════════════════════════════════════════
+// PRAYER LIST RENDER
+// ══════════════════════════════════════════════════
+function renderPrayerList() {
+  const el = document.getElementById('prayer-list');
+  el.innerHTML = PRAYERS.map(p => `
+    <div class="prayer-row" id="row-${p.key}">
+      <div class="p-indicator"></div>
+      <div class="p-body">
+        <div class="p-name-row">
+          <span class="p-name">${p.icon} ${p.name}</span>
+          <span class="p-arabic">${p.arabic}</span>
+        </div>
+        <div class="p-sub">${p.desc}</div>
+      </div>
+      <div class="p-time">${prayerTimes[p.key] || '–:–'}</div>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════
+// PRAYER TOGGLES RENDER
+// ══════════════════════════════════════════════════
+function renderPrayerToggles() {
+  document.getElementById('prayer-toggles').innerHTML = PRAYERS.map(p => `
+    <div class="toggle-row">
+      <div class="toggle-info">
+        <strong>${p.icon} ${p.name}</strong>
+        <span>Alarm ${minutesBefore} menit sebelum ${p.name}</span>
+      </div>
+      <label class="sw">
+        <input type="checkbox" ${enabledMap[p.key] ? 'checked' : ''} onchange="togglePrayer('${p.key}',this.checked)">
+        <div class="sw-track"></div>
+      </label>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════
+// SOUND LIST RENDER
+// ══════════════════════════════════════════════════
+function renderSoundList() {
+  document.getElementById('sound-list').innerHTML = SOUNDS.map(s => `
+    <div class="sound-option ${s.id === selectedSound ? 'selected' : ''}" onclick="selectSound('${s.id}')">
+      <div class="sound-radio"></div>
+      <div class="sound-info">
+        <strong>${s.label}</strong>
+        <span>${s.desc}</span>
+      </div>
+      <button class="sound-preview" onclick="event.stopPropagation(); previewSound('${s.file}')" title="Putar preview">▶</button>
+    </div>
+  `).join('');
+}
+
+// ══════════════════════════════════════════════════
+// NEXT PRAYER LOGIC
+// ══════════════════════════════════════════════════
+function updateNextPrayer() {
+  if (!Object.keys(prayerTimes).length) return;
+  const now  = new Date();
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  const nowS = now.getSeconds();
+
+  let nextP = null, nextDiff = Infinity;
+  let currP = null, currDiff = Infinity;
+
+  PRAYERS.forEach(p => {
+    if (!prayerTimes[p.key]) return;
+    const [h,m] = prayerTimes[p.key].split(':').map(Number);
+    const tm = h * 60 + m;
+    // next
+    const fwd = tm > nowM ? tm - nowM : tm + 1440 - nowM;
+    if (fwd < nextDiff) { nextDiff = fwd; nextP = { ...p, diff: fwd, timeStr: prayerTimes[p.key] }; }
+    // current (just passed)
+    const back = nowM - tm;
+    if (back >= 0 && back < currDiff) { currDiff = back; currP = p; }
+  });
+
+  PRAYERS.forEach(p => {
+    const row = document.getElementById(`row-${p.key}`);
+    if (!row) return;
+    row.classList.remove('is-current','is-next');
+    if (currP && p.key === currP.key) row.classList.add('is-current');
+    if (nextP && p.key === nextP.key) row.classList.add('is-next');
+  });
+
+  if (nextP) {
+    document.getElementById('next-name').textContent = nextP.name;
+    document.getElementById('next-time').textContent  = nextP.timeStr;
+    const hrs = Math.floor(nextP.diff / 60), mins = nextP.diff % 60;
+    document.getElementById('next-countdown').textContent =
+      hrs > 0 ? `${hrs} jam ${mins} menit lagi` : `${mins} menit ${pad(60 - nowS)} detik lagi`;
+    document.getElementById('next-tag').textContent =
+      isActive && enabledMap[nextP.key] ? `⏰ Alarm: ${minutesBefore}′ sebelumnya` : '🔕 Alarm nonaktif';
+  }
+}
+
+// ══════════════════════════════════════════════════
+// ACTIVATE
+// ══════════════════════════════════════════════════
+async function activateAlarms() {
+  const btn = document.getElementById('activate-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Mengatur alarm…';
+
+  try {
+    if (window.Capacitor && Plugins.LocalNotifications) {
+      // Request permission
+      const perm = await Plugins.LocalNotifications.requestPermissions();
+      if (perm.display !== 'granted') {
+        setStatus('err', '❌ Izin notifikasi ditolak. Buka Pengaturan → App → Sholat Wonosobo → Izin → Notifikasi → Izinkan.');
+        btn.textContent = '🔔 Aktifkan Alarm Sholat';
+        btn.disabled = false;
+        return;
+      }
+      await scheduleCapacitorNotifications();
+    } else {
+      // Browser fallback (debug)
+      if (Notification.permission !== 'granted') await Notification.requestPermission();
+      scheduleBrowserFallback();
+    }
+
+    isActive = true;
+    saveSettings();
+    setStatus('ok', `✅ Alarm aktif! Akan berbunyi ${minutesBefore} menit sebelum waktu sholat yang dipilih.`);
+    btn.textContent = '✅ Alarm Aktif — Tap untuk Perbarui';
+    document.getElementById('next-tag').textContent = `⏰ Alarm: ${minutesBefore}′ sebelumnya`;
+
+  } catch(e) {
+    console.error(e);
+    setStatus('err', '❌ Gagal mengatur alarm: ' + e.message);
+    btn.textContent = '🔔 Aktifkan Alarm Sholat';
+  }
+  btn.disabled = false;
+}
+
+// ══════════════════════════════════════════════════
+// CAPACITOR LOCAL NOTIFICATIONS
+// ══════════════════════════════════════════════════
+async function scheduleCapacitorNotifications() {
+  const LN = Plugins.LocalNotifications;
+
+  // Cancel all existing
+  const pending = await LN.getPending();
+  if (pending.notifications.length) {
+    await LN.cancel({ notifications: pending.notifications });
+  }
+
+  const notifications = [];
+  const today = new Date();
+  let id = 1000;
+
+  // Schedule for today + next 7 days to stay persistent
+  for (let dayOffset = 0; dayOffset <= 6; dayOffset++) {
+    for (const p of PRAYERS) {
+      if (!enabledMap[p.key] || !prayerTimes[p.key]) continue;
+
+      // For day 1+ we need to re-fetch ideally, but use today's times as approximation
+      // (variation < 2 min across a week for Wonosobo)
+      const [h, m] = prayerTimes[p.key].split(':').map(Number);
+      const trigger = new Date(today);
+      trigger.setDate(today.getDate() + dayOffset);
+      trigger.setHours(h, m - minutesBefore, 0, 0);
+
+      if (trigger <= new Date()) continue; // skip past times
+
+      notifications.push({
+        id:    id++,
+        title: `🕌 Waktu ${p.name} ${minutesBefore} Menit Lagi`,
+        body:  `${p.icon} ${p.name} (${p.arabic}) pukul ${prayerTimes[p.key]} WIB.\nSegera bersiap untuk sholat. Allahu Akbar.`,
+        schedule: { at: trigger, allowWhileIdle: true },
+        sound:  selectedSound === 'adzan_fajr' && p.key === 'Fajr' ? 'adzan_fajr.wav' : getSoundFile(),
+        smallIcon: 'ic_notification',
+        iconColor: '#C9A84C',
+        channelId: 'sholat-channel',
+        extra: { prayer: p.key, day: dayOffset },
+      });
+    }
+  }
+
+  if (notifications.length === 0) {
+    throw new Error('Tidak ada sholat yang dipilih atau semua waktu sudah lewat hari ini.');
+  }
+
+  await LN.schedule({ notifications });
+  console.log(`✅ ${notifications.length} notifikasi dijadwalkan.`);
+}
+
+// ══════════════════════════════════════════════════
+// BROWSER FALLBACK (dev/debug)
+// ══════════════════════════════════════════════════
+const _timers = [];
+function scheduleBrowserFallback() {
+  _timers.forEach(clearTimeout); _timers.length = 0;
+  PRAYERS.forEach(p => {
+    if (!enabledMap[p.key] || !prayerTimes[p.key]) return;
+    const [h, m] = prayerTimes[p.key].split(':').map(Number);
+    const trigger = new Date();
+    trigger.setHours(h, m - minutesBefore, 0, 0);
+    const delay = trigger - Date.now();
+    if (delay <= 0) return;
+    _timers.push(setTimeout(() => {
+      new Notification(`🕌 ${p.name} ${minutesBefore} menit lagi`, {
+        body: `Waktu ${p.name} pukul ${prayerTimes[p.key]} WIB.`,
+        icon: '🕌',
+        requireInteraction: true,
+      });
+      playAlarmAudio();
+    }, delay));
+  });
+}
+
+// ══════════════════════════════════════════════════
+// SOUND
+// ══════════════════════════════════════════════════
+let _previewAudio = null;
+
+function getSoundFile() {
+  return SOUNDS.find(s => s.id === selectedSound)?.file || 'adzan.wav';
+}
+
+function selectSound(id) {
+  selectedSound = id;
+  renderSoundList();
+  saveSettings();
+  if (isActive) activateAlarms();
+}
+
+function previewSound(file) {
+  if (_previewAudio) { _previewAudio.pause(); _previewAudio.currentTime = 0; }
+
+  // In Capacitor, use NativeAudio or just HTML5 Audio (bundled assets)
+  _previewAudio = new Audio(`assets/audio/${file}`);
+  _previewAudio.volume = 1.0;
+  _previewAudio.play().catch(() => {
+    // Fallback: generate a beep via WebAudio API
+    playWebAudioBeep();
+  });
+  setTimeout(() => { if(_previewAudio){_previewAudio.pause(); _previewAudio.currentTime=0;} }, 8000);
+}
+
+function playAlarmAudio() {
+  const a = new Audio(`assets/audio/${getSoundFile()}`);
+  a.play().catch(() => playWebAudioBeep());
+}
+
+function playWebAudioBeep() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.4, 0.8, 1.2].forEach((t, i) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0, ctx.currentTime + t);
+      gain.gain.linearRampToValueAtTime(0.6, ctx.currentTime + t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.35);
+      osc.start(ctx.currentTime + t);
+      osc.stop(ctx.currentTime + t + 0.4);
+    });
+  } catch(e) { console.warn('WebAudio not supported'); }
+}
+
+// ══════════════════════════════════════════════════
+// TEST ALARM
+// ══════════════════════════════════════════════════
+async function testAlarm() {
+  playAlarmAudio();
+  // Also show a test notification
+  if (window.Capacitor && Plugins.LocalNotifications) {
+    try {
+      await Plugins.LocalNotifications.schedule({
+        notifications: [{
+          id: 9999,
+          title: '🧪 Uji Coba Alarm Sholat',
+          body: `Begini bunyi alarm ${minutesBefore} menit sebelum waktu sholat. Allahu Akbar.`,
+          schedule: { at: new Date(Date.now() + 3000), allowWhileIdle: true },
+          sound: getSoundFile(),
+          smallIcon: 'ic_notification',
+          iconColor: '#C9A84C',
+          channelId: 'sholat-channel',
+        }]
+      });
+      setStatus('ok','🔉 Notifikasi uji coba akan muncul dalam 3 detik. Suara alarm sedang diputar.');
+    } catch(e) {
+      setStatus('warn','🔉 Audio diputar. Aktifkan alarm terlebih dahulu untuk uji notifikasi.');
+    }
+  } else {
+    setStatus('ok','🔉 Suara alarm diputar. (Aktifkan alarm untuk uji notifikasi penuh.)');
+  }
+}
+
+// ══════════════════════════════════════════════════
+// UI HELPERS
+// ══════════════════════════════════════════════════
+function setMinutes(n) {
+  minutesBefore = n;
+  syncMinBtns();
+  renderPrayerToggles(); // refresh labels
+  saveSettings();
+  if (isActive) activateAlarms();
+}
+
+function syncMinBtns() {
+  document.querySelectorAll('.min-btn').forEach(b => {
+    b.classList.toggle('active', Number(b.dataset.m) === minutesBefore);
+  });
+}
+
+function togglePrayer(key, val) {
+  enabledMap[key] = val;
+  saveSettings();
+  if (isActive) activateAlarms();
+}
+
+function setStatus(type, msg) {
+  const el = document.getElementById('status-box');
+  el.className = `status-box ${type}`;
+  el.textContent = msg;
+}
+</script>
+</body>
+</html>
